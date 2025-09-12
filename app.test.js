@@ -15,4 +15,9 @@ describe('DevOps Sample App', () => {
     expect(response.body.status).toBe('healthy');
     expect(response.body).toHaveProperty('uptime');
   });
+
+  afterAll(() => {
+    // Close any open handles
+    setTimeout(() => process.exit(), 1000);
+  });
 });
