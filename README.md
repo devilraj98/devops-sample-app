@@ -116,25 +116,71 @@ aws ecs update-service --force-new-deployment
 
 ## Monitoring & Logging
 
+### Quick Setup
+```bash
+# Setup monitoring (alarms, dashboard, log retention)
+chmod +x scripts/setup-monitoring.sh
+./scripts/setup-monitoring.sh
+```
+
 ### CloudWatch Integration
 - **Application Logs**: `/ecs/devops-sample-app`
 - **Metrics**: CPU, Memory, Network utilization
-- **Alarms**: Configurable thresholds for alerts
+- **Alarms**: High CPU, High Memory, Task Count
+- **Dashboard**: Real-time monitoring view
+- **Retention**: 30 days log retention
 
-### Accessing Logs
+### Accessing Monitoring Data
+
+**AWS Console:**
+- **Dashboard**: CloudWatch → Dashboards → DevOps-Pipeline-Dashboard
+- **Logs**: CloudWatch → Logs → `/ecs/devops-sample-app`
+- **Metrics**: CloudWatch → Metrics → AWS/ECS
+- **Alarms**: CloudWatch → Alarms
+
+**CLI Commands:**
 ```bash
-# View logs via AWS CLI
-aws logs describe-log-groups --log-group-name-prefix "/ecs/devops-sample-app"
-
 # Stream logs in real-time
 aws logs tail /ecs/devops-sample-app --follow
+
+# View recent errors
+aws logs filter-log-events --log-group-name /ecs/devops-sample-app --filter-pattern "ERROR"
+
+# Check service health
+aws ecs describe-services --cluster devops-cluster --services devops-service
+
+# Get CPU metrics
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/ECS \
+  --metric-name CPUUtilization \
+  --dimensions Name=ServiceName,Value=devops-service \
+  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 300 --statistics Average
 ```
 
-### Key Metrics to Monitor
-- Container CPU utilization
-- Memory usage
-- Request count and latency
-- Error rates
+### Key Metrics Monitored
+- **CPU Utilization** (Alert > 80%)
+- **Memory Utilization** (Alert > 80%)
+- **Running Task Count** (Alert < 1)
+- **Application Logs** (Errors, Performance)
+- **Build Success/Failure Rate**
+
+### Log Analysis
+**CloudWatch Insights Queries:**
+```sql
+# Error analysis
+fields @timestamp, @message
+| filter @message like /ERROR/
+| sort @timestamp desc
+
+# Request patterns
+fields @timestamp, @message
+| filter @message like /GET/
+| stats count() by bin(5m)
+```
+
+**📋 For detailed monitoring setup, see [MONITORING.md](MONITORING.md)**
 
 ## Local Development
 
