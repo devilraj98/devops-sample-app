@@ -192,6 +192,100 @@ npm test
 
 ### Common Issues
 
+#### Jenkins Installation Issues
+**Problem:** Jenkins service fails to start with exit code 1
+```bash
+# Check Jenkins logs
+sudo journalctl -u jenkins -f
+
+# Fix: Reinstall with proper Java version
+sudo systemctl stop jenkins
+sudo apt remove jenkins
+sudo apt install openjdk-11-jdk
+
+# Install Jenkins properly
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt update && sudo apt install jenkins
+```
+
+#### Node.js Not Found in Jenkins
+**Problem:** `npm: not found` error in pipeline
+```bash
+# Install Node.js on Jenkins server
+curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo systemctl restart jenkins
+```
+
+#### AWS CLI Not Available
+**Problem:** `aws: not found` error in pipeline
+```bash
+# Install AWS CLI v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+sudo apt install unzip
+unzip awscliv2.zip
+sudo ./aws/install
+sudo ln -s /usr/local/bin/aws /usr/bin/aws
+sudo systemctl restart jenkins
+```
+
+#### AWS Credentials Error in Jenkins
+**Problem:** `Cannot find a Username with password credential with the ID aws-credentials`
+```bash
+# Solution 1: Configure AWS CLI directly on Jenkins server
+sudo su - jenkins
+aws configure
+# Enter AWS Access Key, Secret Key, Region, Output format
+
+# Solution 2: Remove withAWS wrapper from Jenkinsfile
+# Use direct AWS CLI commands instead of withAWS(credentials: 'aws-credentials')
+```
+
+#### Jest Tests Hanging
+**Problem:** `Jest did not exit one second after the test run has completed`
+```json
+// Fix in package.json
+"scripts": {
+  "test": "jest --forceExit --detectOpenHandles"
+}
+```
+
+#### Missing Test Script
+**Problem:** `Missing script: "test"` error
+```json
+// Add to package.json
+"scripts": {
+  "start": "node app.js",
+  "test": "jest --forceExit"
+},
+"devDependencies": {
+  "jest": "^29.5.0",
+  "supertest": "^6.3.3"
+}
+```
+
+#### Docker Permission Issues
+**Problem:** Jenkins can't access Docker
+```bash
+# Add jenkins user to docker group
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
+```
+
+#### GitHub Webhook Not Triggering
+**Problem:** Pipeline doesn't trigger automatically on git push
+```bash
+# In Jenkins job configuration:
+# 1. Build Triggers → Check "GitHub hook trigger for GITScm polling"
+# 2. Manage Jenkins → Configure Global Security → Uncheck CSRF Protection (temporarily)
+
+# In GitHub repository:
+# Settings → Webhooks → Add webhook
+# URL: http://JENKINS_IP:8080/github-webhook/
+# Content type: application/json
+```
+
 #### Pipeline Fails at Docker Build
 ```bash
 # Check Docker daemon status
@@ -208,12 +302,54 @@ aws ecs describe-services --cluster devops-cluster --services devops-service
 
 # Check task definition
 aws ecs describe-task-definition --task-definition devops-sample-app
+
+# Check CloudWatch logs
+aws logs tail /ecs/devops-sample-app --follow
 ```
 
 #### ECR Push Fails
 ```bash
 # Re-authenticate with ECR
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ecr-repo>
+```
+
+### Rollback Procedures
+
+#### Code Rollback
+```bash
+# See commit history
+git log --oneline
+
+# Rollback to previous commit
+git reset --hard HEAD~1
+git push --force origin main
+
+# Or revert specific commit
+git revert COMMIT_HASH
+git push origin main
+```
+
+#### Deployment Rollback
+```bash
+# ECS Console Method:
+# 1. ECS → Clusters → devops-cluster → Services → devops-service
+# 2. Update Service → Task Definition → Select previous revision
+# 3. Update Service
+
+# CLI Method:
+aws ecs update-service --cluster devops-cluster --service devops-service --task-definition devops-sample-app:PREVIOUS_REVISION
+```
+
+#### ECR Image Rollback
+```bash
+# List available images
+aws ecr describe-images --repository-name devops-sample-app
+
+# Tag previous image as latest
+aws ecr batch-get-image --repository-name devops-sample-app --image-ids imageTag=BUILD_NUMBER --query 'images[].imageManifest' --output text | aws ecr put-image --repository-name devops-sample-app --image-manifest file:///dev/stdin --image-tag latest
+
+# Force ECS deployment
+aws ecs update-service --cluster devops-cluster --service devops-service --force-new-deployment
 ```
 
 ## Cost Optimization
