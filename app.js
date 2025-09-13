@@ -10,7 +10,7 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.json({
     message: 'DevOps Sample Application',
-    version: '1.0.1',
+    version: '1.0.2',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });

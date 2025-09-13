@@ -6,7 +6,7 @@ describe('DevOps Sample App', () => {
     const response = await request(app).get('/');
     expect(response.status).toBe(200);
     expect(response.body.message).toBe('DevOps Sample Application');
-    expect(response.body.version).toBe('1.0.1');
+    expect(response.body.version).toBe('1.0.2');
   });
 
   test('GET /health should return health status', async () => {
